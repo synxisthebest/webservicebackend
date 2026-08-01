@@ -2,7 +2,7 @@ import urllib.parse
 import os
 import json
 import re
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import yt_dlp
@@ -11,7 +11,7 @@ import requests
 app = FastAPI(
     title="Glassmorphic Audio Streaming Proxy & Auto YouTube Engine",
     description="Backend proxy for ad-free audio streaming, youtube metadata extraction, and shared global database",
-    version="3.1.0"
+    version="3.2.0"
 )
 
 app.add_middleware(
@@ -121,7 +121,8 @@ def extract_video_id(url_or_query: str) -> str:
     match = re.search(r'(?:v=|\/|be\/)([0-9A-Za-z_-]{11})', url_or_query)
     return match.group(1) if match else None
 
-@app.get("/")
+# Fix 405 Method Not Allowed for Render Health Checks (HEAD /)
+@app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {
         "status": "online",
@@ -134,7 +135,8 @@ def read_root():
         }
     }
 
-@app.get("/playlist")
+# Endpoint for Global Playlist
+@app.api_route("/playlist", methods=["GET", "HEAD"])
 def get_global_playlist():
     playlist = load_db()
     return {"status": "success", "playlist": playlist}
@@ -197,7 +199,7 @@ def add_track_to_global_playlist(payload: dict = Body(...)):
     save_db(playlist)
     return {"status": "success", "message": "Track auto-extracted and added to global playlist!", "track": new_item, "playlist": playlist}
 
-@app.get("/track-info")
+@app.api_route("/track-info", methods=["GET", "HEAD"])
 def get_track_info(url: str = Query(..., description="YouTube Video URL or Search Query")):
     target_query = clean_input_query(url)
     video_id = extract_video_id(target_query)
@@ -236,11 +238,10 @@ def get_track_info(url: str = Query(..., description="YouTube Video URL or Searc
         "audio_endpoint": f"/play-audio?url={urllib.parse.quote(target_query)}"
     }
 
-@app.get("/play-audio")
+@app.api_route("/play-audio", methods=["GET", "HEAD"])
 def play_audio(url: str = Query(..., description="YouTube Video URL or Query to Stream")):
     target_query = clean_input_query(url)
     
-    # Try Multiple Player Client Fallbacks to Bypass Cloud IP Blocks
     player_clients = [
         ['android', 'web'],
         ['ios', 'mweb'],
