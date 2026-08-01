@@ -9,9 +9,9 @@ import yt_dlp
 import requests
 
 app = FastAPI(
-    title="Glassmorphic Audio Streaming Proxy & Auto YouTube Engine",
-    description="Backend proxy for ad-free audio streaming, youtube metadata extraction, and shared global database",
-    version="3.2.0"
+    title="Glassmorphic Audio Streaming Proxy & Bot-Bypass Engine",
+    description="Backend proxy for ad-free audio streaming, youtube metadata extraction, and bot-bypass audio proxy",
+    version="4.0.0"
 )
 
 app.add_middleware(
@@ -88,7 +88,7 @@ def save_db(playlist_data):
     except Exception as e:
         print("DB save error:", e)
 
-# Optimized yt-dlp Options for Cloud Datacenters (Bypasses YouTube Bot Detection & Rate-limits)
+# yt-dlp Options configured for TV & Android Embedded Client (Bypasses "Sign in to confirm you're not a bot")
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -101,13 +101,12 @@ YTDL_OPTIONS = {
     'source_address': '0.0.0.0',
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web', 'mweb', 'ios'],
+            'player_client': ['tvhtml5', 'android_embedded', 'mweb'],
+            'skip': ['hls', 'dash']
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (SmartTV; Linux; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/5.0 TV Safari/537.36',
     }
 }
 
@@ -121,12 +120,47 @@ def extract_video_id(url_or_query: str) -> str:
     match = re.search(r'(?:v=|\/|be\/)([0-9A-Za-z_-]{11})', url_or_query)
     return match.group(1) if match else None
 
-# Fix 405 Method Not Allowed for Render Health Checks (HEAD /)
+# Helper to fetch audio stream via Piped / Invidious open APIs to bypass YouTube bot detection completely
+function_piped_cache = {}
+
+def get_audio_stream_from_piped(video_id: str) -> str:
+    if not video_id:
+        return None
+
+    if video_id in function_piped_cache:
+        return function_piped_cache[video_id]
+
+    piped_instances = [
+        f"https://api.piped.video/streams/{video_id}",
+        f"https://pipedapi.kavin.rocks/streams/{video_id}",
+        f"https://invidious.privacydev.net/api/v1/videos/{video_id}"
+    ]
+
+    for endpoint in piped_instances:
+        try:
+            res = requests.get(endpoint, timeout=4)
+            if res.status_code == 200:
+                data = res.json()
+                audio_streams = data.get('audioStreams') or data.get('adaptiveFormats')
+                if audio_streams:
+                    # Filter for audio only
+                    audio_only = [s for s in audio_streams if 'audio' in s.get('mimeType', '') or s.get('type') == 'audio']
+                    target_list = audio_only if audio_only else audio_streams
+                    target_list.sort(key=lambda x: x.get('bitrate', 0), reverse=True)
+                    stream_url = target_list[0].get('url')
+                    if stream_url:
+                        function_piped_cache[video_id] = stream_url
+                        return stream_url
+        except Exception:
+            continue
+
+    return None
+
 @app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {
         "status": "online",
-        "service": "Glassmorphic Audio Streaming Proxy & Auto YouTube Engine",
+        "service": "Glassmorphic Audio Streaming Proxy & Bot-Bypass Engine",
         "endpoints": {
             "play_audio": "/play-audio?url=[ENCODED_YOUTUBE_URL_OR_QUERY]",
             "track_info": "/track-info?url=[ENCODED_YOUTUBE_URL_OR_QUERY]",
@@ -135,7 +169,6 @@ def read_root():
         }
     }
 
-# Endpoint for Global Playlist
 @app.api_route("/playlist", methods=["GET", "HEAD"])
 def get_global_playlist():
     playlist = load_db()
@@ -241,10 +274,18 @@ def get_track_info(url: str = Query(..., description="YouTube Video URL or Searc
 @app.api_route("/play-audio", methods=["GET", "HEAD"])
 def play_audio(url: str = Query(..., description="YouTube Video URL or Query to Stream")):
     target_query = clean_input_query(url)
-    
+    video_id = extract_video_id(target_query)
+
+    # Bot-Bypass Step 1: Query Open Piped Audio API directly (Zero Bot Check)
+    if video_id:
+        piped_url = get_audio_stream_from_piped(video_id)
+        if piped_url:
+            return RedirectResponse(url=piped_url, status_code=307)
+
+    # Bot-Bypass Step 2: Fallback to yt-dlp with TVHTML5 & Android Embedded Clients
     player_clients = [
-        ['android', 'web'],
-        ['ios', 'mweb'],
+        ['tvhtml5', 'android_embedded'],
+        ['android_embedded', 'mweb'],
         ['web']
     ]
 
@@ -279,9 +320,9 @@ def play_audio(url: str = Query(..., description="YouTube Video URL or Query to 
     if direct_audio_url:
         return RedirectResponse(url=direct_audio_url, status_code=307)
     
-    raise HTTPException(status_code=500, detail=f"Error streaming audio from YouTube: {last_error or 'Video unavailable or blocked'}")
+    raise HTTPException(status_code=500, detail=f"Error streaming audio: {last_error or 'Video stream unavailable'}")
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Glassmorphic Audio Proxy & Auto YouTube Engine on http://127.0.0.1:8000 ...")
+    print("Starting Glassmorphic Audio Proxy & Bot-Bypass Engine on http://127.0.0.1:8000 ...")
     uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=True)
