@@ -12,8 +12,8 @@ import requests
 
 app = FastAPI(
     title="Glassmorphic Audio Streaming Proxy & Bot-Bypass Engine",
-    description="Backend proxy for ad-free audio streaming, youtube metadata extraction, and user auth manager",
-    version="4.6.0"
+    description="Backend proxy for ad-free audio streaming, youtube metadata extraction, github release parser and user auth manager",
+    version="4.7.0"
 )
 
 app.add_middleware(
@@ -196,6 +196,46 @@ def get_audio_stream_from_piped(video_id: str) -> str:
 
     return None
 
+def fetch_github_release_tracks(release_url: str):
+    match = re.search(r'github\.com\/([^\/]+)\/([^\/]+)\/releases\/tag\/([^\/]+)', release_url)
+    if not match:
+        return []
+
+    owner = match.group(1)
+    repo = match.group(2)
+    tag = match.group(3)
+
+    expanded_url = f"https://github.com/{owner}/{repo}/releases/expanded_assets/{tag}"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    try:
+        res = requests.get(expanded_url, headers=headers, timeout=6)
+        if res.status_code == 200:
+            matches = re.findall(r'href="([^"]+/releases/download/[^"]+)"', res.text)
+            unique_links = list(set(matches))
+            tracks = []
+            for idx, link in enumerate(sorted(unique_links)):
+                full_url = "https://github.com" + link if link.startswith('/') else link
+                raw_filename = full_url.split('/')[-1]
+                clean_name = urllib.parse.unquote(raw_filename)
+                clean_name = re.sub(r'\.(flac|mp3|wav|m4a|ogg)$', '', clean_name, flags=re.IGNORECASE).replace('.', ' ')
+                
+                tracks.append({
+                    "id": f"gh-{tag}-{idx+1}",
+                    "title": clean_name,
+                    "artist": f"{owner} (GitHub Release)",
+                    "audioUrl": full_url,
+                    "thumbnail": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop",
+                    "duration": 210,
+                    "plays": "GitHub FLAC Stream",
+                    "isDirectUrl": True
+                })
+            return tracks
+    except Exception as e:
+        print("GitHub release parse error:", e)
+
+    return []
+
 def fetch_youtube_metadata_server(query_or_url: str):
     target_query = clean_input_query(query_or_url)
     video_id = extract_video_id(target_query)
@@ -344,6 +384,7 @@ def read_root():
         "endpoints": {
             "play_audio": "/play-audio?url=[ENCODED_YOUTUBE_URL_OR_QUERY]",
             "track_info": "/track-info?url=[ENCODED_YOUTUBE_URL_OR_QUERY]",
+            "github_release": "/github-release?url=[ENCODED_GITHUB_RELEASE_URL]",
             "get_playlist": "/playlist",
             "add_track": "/add-track",
             "edit_track": "/edit-track",
@@ -358,6 +399,11 @@ def get_global_playlist():
     playlist = load_db()
     return {"status": "success", "playlist": playlist}
 
+@app.api_route("/github-release", methods=["GET", "HEAD"])
+def parse_github_release(url: str = Query(..., description="GitHub Release Tag URL")):
+    tracks = fetch_github_release_tracks(url)
+    return {"status": "success", "count": len(tracks), "tracks": tracks}
+
 @app.post("/add-track")
 def add_track_to_global_playlist(payload: dict = Body(...)):
     raw_query = payload.get("youtubeUrl") or payload.get("url") or payload.get("query")
@@ -366,6 +412,18 @@ def add_track_to_global_playlist(payload: dict = Body(...)):
 
     added_by = payload.get("addedBy") or "admin"
     added_by_display = payload.get("addedByDisplayName") or added_by
+
+    if "github.com" in raw_query and "/releases/tag/" in raw_query:
+        gh_tracks = fetch_github_release_tracks(raw_query)
+        if gh_tracks:
+            playlist = load_db()
+            for t in gh_tracks:
+                t["addedBy"] = added_by
+                t["addedByDisplayName"] = added_by_display
+                playlist = [p for p in playlist if p.get('id') != t['id']]
+                playlist.insert(0, t)
+            save_db(playlist)
+            return {"status": "success", "message": f"Đã nạp {len(gh_tracks)} bài từ GitHub Release!", "playlist": playlist, "tracks": gh_tracks}
 
     meta = fetch_youtube_metadata_server(raw_query)
 
@@ -408,7 +466,6 @@ def edit_track(payload: dict = Body(...)):
     playlist = load_db()
     target_idx = next((i for i, p in enumerate(playlist) if p.get("id") == track_id), -1)
 
-    # Upsert if not found in database yet (e.g. default or local track)
     if target_idx == -1:
         new_track = {
             "id": track_id,
