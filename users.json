@@ -1,0 +1,16 @@
+[
+  {
+    "username": "admin",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "displayName": "Administrator",
+    "role": "admin",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=admin"
+  },
+  {
+    "username": "testuser",
+    "password_hash": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",
+    "displayName": "Test User",
+    "role": "user",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=testuser"
+  }
+]

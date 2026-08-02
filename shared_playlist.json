@@ -1,0 +1,46 @@
+[
+  {
+    "id": "hit-2",
+    "rank": "02",
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "thumbnail": "https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg",
+    "youtubeUrl": "https://www.youtube.com/watch?v=4NRXx6U8ABQ",
+    "duration": 200,
+    "addedBy": "admin",
+    "addedByDisplayName": "Administrator"
+  },
+  {
+    "id": "hit-3",
+    "rank": "03",
+    "title": "As It Was",
+    "artist": "Harry Styles",
+    "thumbnail": "https://i.ytimg.com/vi/H5v3kku4y6Q/hqdefault.jpg",
+    "youtubeUrl": "https://www.youtube.com/watch?v=H5v3kku4y6Q",
+    "duration": 167,
+    "addedBy": "admin",
+    "addedByDisplayName": "Administrator"
+  },
+  {
+    "id": "hit-4",
+    "rank": "04",
+    "title": "Shape of You",
+    "artist": "Ed Sheeran",
+    "thumbnail": "https://i.ytimg.com/vi/JGwWNGJdvx8/hqdefault.jpg",
+    "youtubeUrl": "https://www.youtube.com/watch?v=JGwWNGJdvx8",
+    "duration": 233,
+    "addedBy": "admin",
+    "addedByDisplayName": "Administrator"
+  },
+  {
+    "id": "hit-5",
+    "rank": "05",
+    "title": "Stay",
+    "artist": "The Kid LAROI & Justin Bieber",
+    "thumbnail": "https://i.ytimg.com/vi/kTJczUoc26U/hqdefault.jpg",
+    "youtubeUrl": "https://www.youtube.com/watch?v=kTJczUoc26U",
+    "duration": 141,
+    "addedBy": "admin",
+    "addedByDisplayName": "Administrator"
+  }
+]
